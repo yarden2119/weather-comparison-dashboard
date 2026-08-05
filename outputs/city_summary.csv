@@ -1,0 +1,5 @@
+﻿city,average_temperature_c,highest_temperature_c,lowest_temperature_c,total_precipitation_mm,rainy_days,average_temperature_range_c,strongest_wind_kmh,temperature_standard_deviation_c
+Bangkok,28.7,38.7,17.5,1675.3,261,7.7,18.2,1.7
+London,12.5,33.6,-4.5,613.4,191,7.0,33.5,6.1
+New York,12.7,40.4,-16.7,1116.1,173,8.7,30.6,10.4
+Tel Aviv,21.6,38.7,2.0,278.9,104,7.8,35.2,5.3
