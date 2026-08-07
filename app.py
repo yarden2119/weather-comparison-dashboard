@@ -69,12 +69,27 @@ st.write(
     """
 )
 
-
+def rtl_subheader(text):
+    st.markdown(
+        f"""
+        <h2 dir="rtl" style="text-align: right;">
+            {text}
+        </h2>
+        """,
+        unsafe_allow_html=True
+    )
 # --------------------------------------------------
 # סרגל סינון
 # --------------------------------------------------
 
-st.sidebar.header("סינון הנתונים")
+st.sidebar.markdown(
+    """
+    <h3 dir="rtl" style="text-align: right;">
+        סינון הנתונים
+    </h3>
+    """,
+    unsafe_allow_html=True
+)
 
 available_cities = sorted(
     weather_df["city"].unique()
@@ -123,49 +138,119 @@ if filtered_df.empty:
     st.warning("לא נמצאו נתונים עבור הסינון שנבחר.")
     st.stop()
 
-
+city_comparison = (
+    filtered_df
+    .groupby(
+        "city",
+        as_index=False
+    )
+    .agg(
+        lowest_temperature_c=(
+            "min_temperature_c",
+            "min"
+        ),
+        temperature_std_c=(
+            "average_temperature_c",
+            "std"
+        ),
+        average_temperature_c=(
+            "average_temperature_c",
+            "mean"
+        ),
+        highest_temperature_c=(
+            "max_temperature_c",
+            "max"
+        ),
+        total_precipitation_mm=(
+            "precipitation_mm",
+            "sum"
+        ),
+        rainy_days=(
+            "is_rainy_day",
+            "sum"
+        ),
+        strongest_wind_kmh=(
+            "max_wind_speed_kmh",
+            "max"
+        )
+    )
+)
 # --------------------------------------------------
 # מדדים מרכזיים
 # --------------------------------------------------
 
-average_temperature = (
-    filtered_df["average_temperature_c"].mean()
-)
-
-highest_temperature = (
-    filtered_df["max_temperature_c"].max()
-)
-
-total_precipitation = (
-    filtered_df["precipitation_mm"].sum()
-)
-
-rainy_days = int(
-    filtered_df["is_rainy_day"].sum()
-)
-
+rtl_subheader("מדדים מרכזיים")
 
 metric_1, metric_2, metric_3, metric_4 = st.columns(4)
 
-metric_1.metric(
-    "טמפרטורה ממוצעת",
-    f"{average_temperature:.1f} °C"
-)
 
-metric_2.metric(
-    "הטמפרטורה הגבוהה ביותר",
-    f"{highest_temperature:.1f} °C"
-)
+if len(selected_cities) == 1:
 
-metric_3.metric(
-    "סך המשקעים",
-    f"{total_precipitation:.1f} מ״מ"
-)
+    city_data = city_comparison.iloc[0]
 
-metric_4.metric(
-    "ימים גשומים",
-    f"{rainy_days}"
-)
+    metric_1.metric(
+        "טמפרטורה ממוצעת",
+        f"{city_data['average_temperature_c']:.1f} °C"
+    )
+
+    metric_2.metric(
+        "הטמפרטורה הגבוהה ביותר",
+        f"{city_data['highest_temperature_c']:.1f} °C"
+    )
+
+    metric_3.metric(
+        "סך המשקעים",
+        f"{city_data['total_precipitation_mm']:.1f} מ״מ"
+    )
+
+    metric_4.metric(
+        "ימים גשומים",
+        f"{int(city_data['rainy_days'])}"
+    )
+
+
+else:
+
+    warmest_city = city_comparison.loc[
+        city_comparison["average_temperature_c"].idxmax()
+    ]
+
+    highest_temperature_city = city_comparison.loc[
+        city_comparison["highest_temperature_c"].idxmax()
+    ]
+
+    wettest_city = city_comparison.loc[
+        city_comparison["total_precipitation_mm"].idxmax()
+    ]
+
+    rainiest_city = city_comparison.loc[
+        city_comparison["rainy_days"].idxmax()
+    ]
+
+
+    metric_1.metric(
+        "העיר החמה בממוצע",
+        warmest_city["city"],
+        f"{warmest_city['average_temperature_c']:.1f} °C"
+    )
+
+    metric_2.metric(
+        "הטמפרטורה הגבוהה ביותר",
+        highest_temperature_city["city"],
+        f"{highest_temperature_city['highest_temperature_c']:.1f} °C"
+    )
+
+    metric_3.metric(
+        "העיר עם הכי הרבה משקעים",
+        wettest_city["city"],
+        f"{wettest_city['total_precipitation_mm']:.1f} מ״מ"
+    )
+
+    metric_4.metric(
+        "העיר עם הכי הרבה ימי גשם",
+        rainiest_city["city"],
+        f"{int(rainiest_city['rainy_days'])} ימים"
+    )
 
 
 # --------------------------------------------------
@@ -202,12 +287,128 @@ monthly_df["month_name"] = (
     monthly_df["month"].map(MONTH_NAMES)
 )
 
+# --------------------------------------------------
+# סיכום מילולי דינמי
+# --------------------------------------------------
 
+rtl_subheader("מסקנות מרכזיות")
+
+
+if len(selected_cities) == 1:
+
+    city_name = selected_cities[0]
+
+    city_data = city_comparison.iloc[0]
+
+    warmest_month = monthly_df.loc[
+        monthly_df[
+            "average_temperature_c"
+        ].idxmax()
+    ]
+
+    wettest_month = monthly_df.loc[
+        monthly_df[
+            "total_precipitation_mm"
+        ].idxmax()
+    ]
+
+    st.markdown(
+        f"""
+        <div dir="rtl" style="text-align: right;">
+            <ul>
+                <li>
+                    הטמפרטורה הממוצעת ב־
+                    <bdi dir="ltr"><strong>{city_name}</strong></bdi>
+                    בתקופה שנבחרה הייתה
+                    <bdi dir="ltr"><strong>{city_data['average_temperature_c']:.1f}°C</strong></bdi>.
+                </li>
+                <li>
+                    הטמפרטורה הגבוהה ביותר הייתה
+                    <bdi dir="ltr"><strong>{city_data['highest_temperature_c']:.1f}°C</strong></bdi>,
+                    והנמוכה ביותר הייתה
+                    <bdi dir="ltr"><strong>{city_data['lowest_temperature_c']:.1f}°C</strong></bdi>.
+                </li>
+                <li>
+                    החודש החם ביותר היה
+                    <strong>{warmest_month['month_name']}</strong>,
+                    עם טמפרטורה ממוצעת של
+                    <bdi dir="ltr"><strong>{warmest_month['average_temperature_c']:.1f}°C</strong></bdi>.
+                </li>
+                <li>
+                    החודש הגשום ביותר היה
+                    <strong>{wettest_month['month_name']}</strong>,
+                    עם
+                    <bdi dir="ltr"><strong>{wettest_month['total_precipitation_mm']:.1f} מ"מ</strong></bdi>
+                    משקעים.
+                </li>
+            </ul>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+else:
+
+    warmest_city = city_comparison.loc[
+        city_comparison[
+            "average_temperature_c"
+        ].idxmax()
+    ]
+
+    coldest_city = city_comparison.loc[
+        city_comparison[
+            "average_temperature_c"
+        ].idxmin()
+    ]
+
+    wettest_city = city_comparison.loc[
+        city_comparison[
+            "total_precipitation_mm"
+        ].idxmax()
+    ]
+
+    most_variable_city = city_comparison.loc[
+        city_comparison[
+            "temperature_std_c"
+        ].idxmax()
+    ]
+    st.markdown(
+        f"""
+        <div dir="rtl" style="text-align: right;">
+            <ul>
+                <li>
+                    <bdi dir="ltr"><strong>{warmest_city['city']}</strong></bdi>
+                    הייתה העיר החמה ביותר בממוצע, עם
+                    <bdi dir="ltr"><strong>{warmest_city['average_temperature_c']:.1f}°C</strong></bdi>.
+                </li>
+                <li>
+                    <bdi dir="ltr"><strong>{coldest_city['city']}</strong></bdi>
+                    הייתה העיר הקרה ביותר בממוצע, עם
+                    <bdi dir="ltr"><strong>{coldest_city['average_temperature_c']:.1f}°C</strong></bdi>.
+                </li>
+                <li>
+                    <bdi dir="ltr"><strong>{wettest_city['city']}</strong></bdi>
+                    קיבלה את כמות המשקעים הגבוהה ביותר:
+                    <bdi dir="ltr"><strong>{wettest_city['total_precipitation_mm']:.1f} מ"מ</strong></bdi>.
+                </li>
+                <li>
+                    <bdi dir="ltr"><strong>{most_variable_city['city']}</strong></bdi>
+                    הציגה את התנודתיות הגדולה ביותר בטמפרטורה,
+                    עם סטיית תקן של
+                    <bdi dir="ltr"><strong>{most_variable_city['temperature_std_c']:.1f}°C</strong></bdi>.
+                </li>
+            </ul>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    
 # --------------------------------------------------
 # גרף 1: טמפרטורה חודשית ממוצעת
 # --------------------------------------------------
 
-st.subheader("טמפרטורה חודשית ממוצעת")
+rtl_subheader("טמפרטורה חודשית ממוצעת")
 
 temperature_chart = px.line(
     monthly_df,
@@ -239,7 +440,7 @@ st.plotly_chart(
 # גרף 2: משקעים חודשיים
 # --------------------------------------------------
 
-st.subheader("כמות משקעים חודשית")
+rtl_subheader("כמות משקעים חודשית")
 
 precipitation_chart = px.bar(
     monthly_df,
@@ -271,7 +472,7 @@ st.plotly_chart(
 # גרף 3: התפלגות הטמפרטורות
 # --------------------------------------------------
 
-st.subheader("התפלגות הטמפרטורות היומיות")
+rtl_subheader("התפלגות הטמפרטורות היומיות")
 
 temperature_distribution_chart = px.box(
     filtered_df,
@@ -295,7 +496,7 @@ st.plotly_chart(
 # טבלת הנתונים
 # --------------------------------------------------
 
-st.subheader("הנתונים המסוננים")
+rtl_subheader("הנתונים המסוננים")
 
 display_columns = [
     "date",
