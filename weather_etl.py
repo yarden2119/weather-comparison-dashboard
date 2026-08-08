@@ -9,7 +9,7 @@ import requests
 URL = "https://archive-api.open-meteo.com/v1/archive"
 
 # טווח התאריכים של הפרויקט
-START_DATE = "2025-01-01"
+START_DATE = "2021-01-01"
 END_DATE = "2025-12-31"
 
 
@@ -92,7 +92,7 @@ def fetch_city_weather(city_name, coordinates):
 
     raw_file_path = (
         RAW_DATA_FOLDER
-        / f"{city_file_name}_2025.json"
+        / f"{city_file_name}_2021_2025.json"
     )
 
     # שמירת התשובה המקורית שקיבלנו מה-API
@@ -297,7 +297,7 @@ weather_df = weather_df.sort_values(
 # הנתיב שבו יישמר הקובץ הנקי
 processed_file_path = (
     PROCESSED_DATA_FOLDER
-    / "weather_2025.csv"
+    / "weather_2021_2025.csv"
 )
 
 
