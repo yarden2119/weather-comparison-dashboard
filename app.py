@@ -2,10 +2,13 @@ from pathlib import Path
 
 import pandas as pd
 import plotly.express as px
+import requests
 import streamlit as st
 
+from weather_etl import fetch_dynamic_city_history
 
 DATA_FILE = Path("data/processed/weather_2021_2025.csv")
+GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search"
 
 MONTH_NAMES = {
     1: "ינואר",
@@ -53,32 +56,67 @@ def load_weather_data():
         parse_dates=["date"]
     )
 
-    # יצירה מחדש של העמודה כדי לוודא שהיא בוליאנית
-    df["is_rainy_day"] = (
-        df["precipitation_mm"] > 0
-    )
-
-
-    df["is_travel_friendly_day"] = (
-        df["average_temperature_c"].between(
-            TRAVEL_MIN_TEMP_C,
-            TRAVEL_MAX_TEMP_C
-        )
-        & (
-            df["precipitation_mm"]
-            < TRAVEL_MAX_PRECIPITATION_MM
-        )
-        & (
-            df["max_wind_speed_kmh"]
-            < TRAVEL_MAX_WIND_KMH
-        )
-    )
-
     return df
+
+def search_city(city_name):
+
+    params = {
+        "name": city_name,
+        "count": 5,
+        "language": "en",
+        "format": "json"
+    }
+
+    response = requests.get(
+        GEOCODING_URL,
+        params=params,
+        timeout=30
+    )
+
+    response.raise_for_status()
+
+    data = response.json()
+
+    return data.get("results", [])
 
 
 weather_df = load_weather_data()
 
+# אם המשתמש כבר הוסיף עיר חדשה במהלך השימוש באפליקציה,
+# הנתונים שלה נשמרו ב-session_state תחת המפתח dynamic_city_data
+if "dynamic_city_data" in st.session_state:
+
+    # חיבור הנתונים של העיר החדשה לנתונים הקבועים
+    # שכבר נטענו מה-CSV
+    weather_df = pd.concat(
+        [
+            weather_df,
+            st.session_state["dynamic_city_data"]
+        ],
+        ignore_index=True
+    )
+
+# חישוב המדדים הבוליאניים אחרי חיבור כל מקורות הנתונים,
+# כדי שאותה לוגיקה תחול גם על הערים הקבועות וגם על ערים דינמיות
+
+weather_df["is_rainy_day"] = (
+    weather_df["precipitation_mm"] > 0
+)
+
+weather_df["is_travel_friendly_day"] = (
+    weather_df["average_temperature_c"].between(
+        TRAVEL_MIN_TEMP_C,
+        TRAVEL_MAX_TEMP_C
+    )
+    & (
+        weather_df["precipitation_mm"]
+        < TRAVEL_MAX_PRECIPITATION_MM
+    )
+    & (
+        weather_df["max_wind_speed_kmh"]
+        < TRAVEL_MAX_WIND_KMH
+    )
+)
 
 st.title("✈️ Travel Weather Planner🌤️")
 
@@ -167,6 +205,115 @@ selected_cities = st.sidebar.multiselect(
     options=available_cities,
     default=available_cities
 )
+
+with st.sidebar.expander("➕ הוספת יעד אחר"):
+
+    city_query = st.text_input(
+        "הקלידו שם עיר",
+        placeholder="לדוגמה: Paris"
+    )
+
+    if st.button("חיפוש עיר"):
+
+        if len(city_query.strip()) < 3:
+            st.warning("יש להקליד לפחות 3 תווים.")
+
+        else:
+            try:
+                search_results = search_city(
+                    city_query.strip()
+                )
+
+                st.session_state["city_search_results"] = (
+                    search_results
+                )
+
+            except requests.RequestException:
+                st.error(
+                    "לא ניתן היה לבצע את החיפוש."
+                )
+    if "city_search_results" in st.session_state:
+
+        search_results = st.session_state[
+            "city_search_results"
+        ]
+
+        if not search_results:
+            st.info("לא נמצאו ערים מתאימות.")
+
+        else:
+
+            city_options = {}
+                
+            for result in search_results:
+
+                city_label = (
+                    f"{result.get('name', '')}, "
+                    f"{result.get('admin1', '')}, "
+                    f"{result.get('country', '')}"
+                )
+
+                city_options[city_label] = result
+
+            selected_city_label = st.selectbox(
+                "בחרו את העיר המתאימה",
+                list(city_options.keys())
+            )
+
+            selected_city_result = city_options[
+                selected_city_label
+            ] 
+
+            # שם קצר יותר להצגה בדשבורד
+            dynamic_city_name = selected_city_result["name"]
+
+            # כאשר המשתמש לוחץ על הכפתור,
+            # נמשוך את נתוני מזג האוויר ההיסטוריים של העיר שבחר
+            if st.button("הוספה להשוואה"):
+
+                try:
+                    dynamic_city_df = fetch_dynamic_city_history(
+                        city_name=dynamic_city_name,
+                        latitude=selected_city_result["latitude"],
+                        longitude=selected_city_result["longitude"]
+                    )
+
+                    # אם כבר נוספה בעבר עיר דינמית,
+                    # נחבר את העיר החדשה לנתונים שכבר שמורים ב-session_state
+                    if "dynamic_city_data" in st.session_state:
+
+                        combined_dynamic_data = pd.concat(
+                            [
+                                st.session_state["dynamic_city_data"],
+                                dynamic_city_df
+                            ],
+                            ignore_index=True
+                        )
+
+                        # מניעת כפילות אם המשתמש מוסיף שוב את אותה עיר
+                        combined_dynamic_data = combined_dynamic_data.drop_duplicates(
+                            subset=["city", "date"]
+                        ).reset_index(drop=True)
+
+                        st.session_state["dynamic_city_data"] = (
+                            combined_dynamic_data
+                        )
+
+                    # אם זו העיר הדינמית הראשונה שנוספה,
+                    # ניצור את המפתח dynamic_city_data ונשמור בו את הדאטה
+                    else:
+                        st.session_state["dynamic_city_data"] = (
+                            dynamic_city_df
+                        )
+
+                    # הרצה מחדש של האפליקציה כדי שהעיר החדשה
+                    # תיכנס ל-weather_df ותופיע ברשימת היעדים
+                    st.rerun()
+
+                except requests.RequestException:
+                    st.error(
+                        "לא ניתן היה להוריד את נתוני מזג האוויר עבור העיר."
+                    )
 
 selected_months = st.sidebar.multiselect(
     "באילו חודשים אתם שוקלים לטייל?",
